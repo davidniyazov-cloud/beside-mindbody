@@ -72,11 +72,28 @@ async function mb(method, path, data = {}, auth = true) {
  * Returns the first match or null.
  */
 async function findClientByPhone(phone) {
-  // Normalize: strip non-digits
-  const normalized = phone.replace(/\D/g, '');
+  // Normalize: strip non-digits AND leading country code (1)
+  // Mindbody stores 10-digit US numbers; searching with 11 digits won't match
+  const normalized = phone.replace(/\D/g, '').replace(/^1/, '').slice(-10);
 
   const res = await mb('GET', '/client/clients', {
     SearchText: normalized,
+  });
+
+  const clients = res.Clients || [];
+  return clients.length > 0 ? clients[0] : null;
+}
+
+/**
+ * Search for an existing client by name.
+ * Returns the first match or null.
+ */
+async function findClientByName(firstName, lastName) {
+  const searchText = `${firstName} ${lastName}`.trim();
+  if (!searchText) return null;
+
+  const res = await mb('GET', '/client/clients', {
+    SearchText: searchText,
   });
 
   const clients = res.Clients || [];
@@ -106,15 +123,30 @@ async function createClient({ firstName, lastName, phone, email }) {
  * Find or create a client. Returns the Mindbody client object.
  */
 async function findOrCreateClient({ firstName, lastName, phone, email }) {
+  // 1. Try phone lookup first
   if (phone) {
     const existing = await findClientByPhone(phone);
     if (existing) {
-      console.log(`[Mindbody] Found existing client: ${existing.FirstName} ${existing.LastName} (ID: ${existing.Id})`);
+      console.log(`[Mindbody] Found existing client by phone: ${existing.FirstName} ${existing.LastName} (ID: ${existing.Id})`);
       return existing;
     }
   }
+
+  // 2. Try creating — if Mindbody rejects as duplicate, fall back to name search
   console.log(`[Mindbody] Creating new client: ${firstName} ${lastName}`);
-  return createClient({ firstName, lastName, phone, email });
+  try {
+    return await createClient({ firstName, lastName, phone, email });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('duplicate')) {
+      console.log(`[Mindbody] Duplicate error — searching by name as fallback`);
+      const byName = await findClientByName(firstName, lastName);
+      if (byName) {
+        console.log(`[Mindbody] Found existing client by name: ${byName.FirstName} ${byName.LastName} (ID: ${byName.Id})`);
+        return byName;
+      }
+    }
+    throw err;
+  }
 }
 
 // ─── Services ─────────────────────────────────────────────────────────────────
@@ -219,6 +251,7 @@ async function sendTextMessage(clientId, message) {
 module.exports = {
   findOrCreateClient,
   findClientByPhone,
+  findClientByName,
   createClient,
   getServiceTypes,
   resolveService,
