@@ -322,42 +322,52 @@ app.get('/debug/book-test', async (req, res) => {
       email:     'test@spacibo.com',
     });
 
-    // 2. Services 200/203/204 are active. Probe staff IDs to find one that works.
-    const activeServiceIds = [200, 203, 204];
-    const candidateStaffIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100000001, 100000003, 100000004, 100000005];
+    // 2. Staff ID 1 is active. Find which services they can provide via activesessiontypes?staffId=1
+    const staffId = 1;
+    let staffServiceTypes = [];
+    try {
+      const axios = require('axios');
+      const r = await axios.get('https://api.mindbodyonline.com/public/v6/appointment/activesessiontypes', {
+        headers: {
+          'Api-Key':       process.env.MINDBODY_API_KEY,
+          'SiteId':        process.env.MINDBODY_SITE_ID,
+          'Authorization': await require('./mindbody').getStaffTokenDebug(),
+        },
+        params: { StaffId: staffId },
+      });
+      staffServiceTypes = (r.data.SessionTypes || []).map(t => t.Id);
+    } catch(e) {
+      return res.status(500).json({ success: false, step: 'get staff services', error: e.message });
+    }
+
+    // Try booking with each service type until one succeeds
     let appointment = null;
     let usedServiceId = null;
-    let usedStaffId = null;
     const errors = {};
-
-    outer:
-    for (const svcId of activeServiceIds) {
-      for (const staffId of candidateStaffIds) {
-        try {
-          appointment = await bookAppointment({
-            clientId:      client.Id,
-            serviceId:     svcId,
-            staffId,
-            startDateTime,
-            notes:         'Test booking from /debug/book-test',
-          });
-          usedServiceId = svcId;
-          usedStaffId = staffId;
-          break outer;
-        } catch (e) {
-          errors[`svc${svcId}-staff${staffId}`] = e.message.replace('Mindbody API error on POST /appointment/addappointment: ', '');
-        }
+    for (const svcId of staffServiceTypes.slice(0, 20)) {
+      try {
+        appointment = await bookAppointment({
+          clientId:      client.Id,
+          serviceId:     svcId,
+          staffId,
+          startDateTime,
+          notes:         'Test booking from /debug/book-test',
+        });
+        usedServiceId = svcId;
+        break;
+      } catch (e) {
+        errors[svcId] = e.message.replace('Mindbody API error on POST /appointment/addappointment: ', '');
       }
     }
 
     if (!appointment) {
-      return res.status(500).json({ success: false, errors });
+      return res.status(500).json({ success: false, staffId, staffServiceTypes, errors });
     }
 
     res.json({
       success: true,
       usedServiceId,
-      usedStaffId,
+      staffId,
       client:      { id: client.Id, name: `${client.FirstName} ${client.LastName}` },
       appointment: { id: appointment?.Id, startDateTime: appointment?.StartDateTime },
     });
