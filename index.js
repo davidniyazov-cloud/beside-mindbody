@@ -280,6 +280,32 @@ function buildConfirmationMessage({ firstName, serviceName, dateStr, timeStr, ap
   `.trim();
 }
 
+// ─── Debug: check availability for next 7 days ──────────────────────────────
+app.get('/debug/slots', async (req, res) => {
+  try {
+    const today = new Date();
+    const results = {};
+    const serviceIds = [200, 245, 246, 248, 4, 9]; // test a variety
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+      results[dateStr] = {};
+      for (const svcId of serviceIds) {
+        try {
+          const slots = await getAvailability(dateStr, null, svcId);
+          if (slots.length > 0) results[dateStr][svcId] = slots.map(s => ({ time: s.StartDateTime, staffId: s.Staff?.Id, staffName: s.Staff?.Name }));
+        } catch(e) {
+          results[dateStr][svcId] = { error: e.message };
+        }
+      }
+    }
+    res.json({ siteId: process.env.MINDBODY_SITE_ID, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ Beside → Mindbody integration running on port ${PORT}`);
