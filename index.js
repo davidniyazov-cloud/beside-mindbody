@@ -156,11 +156,24 @@ app.post('/webhook/beside', async (req, res) => {
 
     // ── Step 3: Resolve the service type ──────────────────────────────────
     const serviceId = await resolveService(intent.appointment.serviceType);
-    const staffId   = parseInt(process.env.DEFAULT_STAFF_ID, 10);
+    let staffId     = parseInt(process.env.DEFAULT_STAFF_ID, 10);
 
     // ── Step 4: Book the appointment (if we have a date/time) ────────────
     let appointment = null;
     if (intent.appointment.startDateTime) {
+      // Try to get a real available slot first (gives us a valid staffId)
+      const dateStr = intent.appointment.startDateTime.split('T')[0];
+      try {
+        const slots = await getAvailability(dateStr, staffId, serviceId);
+        if (slots && slots.length > 0) {
+          // Use the staff from the first available slot
+          staffId = slots[0].Staff?.Id || staffId;
+          console.log(`[Mindbody] Using staff ID from availability: ${staffId}`);
+        }
+      } catch (avErr) {
+        console.log(`[Mindbody] Availability check failed (using default staffId): ${avErr.message}`);
+      }
+
       appointment = await bookAppointment({
         clientId:      client.Id,
         serviceId,
