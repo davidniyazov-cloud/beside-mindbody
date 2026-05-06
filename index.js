@@ -322,21 +322,36 @@ app.get('/debug/book-test', async (req, res) => {
       email:     'test@spacibo.com',
     });
 
-    // 2. Use default service (246 = 60-Swedish-Massage) and staff
-    const serviceId = parseInt(process.env.DEFAULT_SERVICE_ID, 10);
-    const staffId   = parseInt(process.env.DEFAULT_STAFF_ID, 10);
+    // 2. Try several service IDs to find one active in the sandbox
+    const staffId = parseInt(process.env.DEFAULT_STAFF_ID, 10);
+    const candidateServiceIds = [200, 203, 204, 155, 156, 157, 4, 9, 246, 248];
+    let appointment = null;
+    let usedServiceId = null;
+    const errors = {};
 
-    // 3. Try booking directly (no availability check)
-    const appointment = await bookAppointment({
-      clientId:      client.Id,
-      serviceId,
-      staffId,
-      startDateTime,
-      notes:         'Test booking from /debug/book-test endpoint',
-    });
+    for (const svcId of candidateServiceIds) {
+      try {
+        appointment = await bookAppointment({
+          clientId:      client.Id,
+          serviceId:     svcId,
+          staffId,
+          startDateTime,
+          notes:         'Test booking from /debug/book-test endpoint',
+        });
+        usedServiceId = svcId;
+        break;
+      } catch (e) {
+        errors[svcId] = e.message;
+      }
+    }
+
+    if (!appointment) {
+      return res.status(500).json({ success: false, triedServiceIds: candidateServiceIds, errors });
+    }
 
     res.json({
       success: true,
+      usedServiceId,
       client:      { id: client.Id, name: `${client.FirstName} ${client.LastName}` },
       appointment: { id: appointment?.Id, startDateTime: appointment?.StartDateTime },
     });
