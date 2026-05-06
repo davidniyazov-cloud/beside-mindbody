@@ -135,12 +135,36 @@ function splitName(fullName) {
  * @returns {object} intent - Parsed booking intent
  */
 function parseCallPayload(payload) {
-  // Beside sends via Zapier with these field names:
-  // from_name, from_phone_number, summary, transcript, title, direction, id
+  // Beside sends via Zapier with these field names.
+  // For inbound calls: From = client, To = Spacibo
+  // For outbound calls: From = Spacibo, To = client
   const summary    = payload.summary    || payload.Summary    || '';
   const transcript = payload.transcript || payload.Transcript || '';
-  const callerName = payload.from_name  || payload.callerName || payload.caller_name || payload.CallerName || '';
-  const callerPhone= payload.from_phone_number || payload.callerPhone || payload.caller_phone || payload.phone || '';
+  const direction  = (payload.direction || '').toLowerCase();
+
+  const BUSINESS_NAME = 'spacibo';
+  const fromName  = payload.from_name  || '';
+  const fromPhone = payload.from_phone || payload.from_phone_number || '';
+  const toName    = payload.to_name    || '';
+  const toPhone   = payload.to_phone   || payload.to_phone_number   || '';
+
+  // Pick whichever side is NOT the business
+  let callerName, callerPhone;
+  if (fromName.toLowerCase().includes(BUSINESS_NAME)) {
+    callerName  = toName;
+    callerPhone = toPhone;
+  } else if (toName.toLowerCase().includes(BUSINESS_NAME)) {
+    callerName  = fromName;
+    callerPhone = fromPhone;
+  } else {
+    // Fallback: inbound = from is caller, outbound = to is caller
+    callerName  = direction === 'outbound' ? toName  : fromName;
+    callerPhone = direction === 'outbound' ? toPhone : fromPhone;
+  }
+
+  // Also handle legacy/direct webhook field names
+  callerName  = callerName  || payload.callerName  || payload.caller_name  || '';
+  callerPhone = callerPhone || payload.callerPhone || payload.caller_phone || payload.phone || '';
 
   // Combine all text for parsing
   const fullText = `${summary}\n${transcript}`;
