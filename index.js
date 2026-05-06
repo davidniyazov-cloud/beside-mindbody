@@ -306,6 +306,45 @@ app.get('/debug/slots', async (req, res) => {
   }
 });
 
+// ─── Direct booking test (sandbox) ──────────────────────────────────────────
+app.get('/debug/book-test', async (req, res) => {
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+    const startDateTime = `${dateStr}T10:00:00`;
+
+    // 1. Find or create a test client
+    const client = await findOrCreateClient({
+      firstName: 'Test',
+      lastName:  'Booking',
+      phone:     '5555555555',
+      email:     'test@spacibo.com',
+    });
+
+    // 2. Use default service (246 = 60-Swedish-Massage) and staff
+    const serviceId = parseInt(process.env.DEFAULT_SERVICE_ID, 10);
+    const staffId   = parseInt(process.env.DEFAULT_STAFF_ID, 10);
+
+    // 3. Try booking directly (no availability check)
+    const appointment = await bookAppointment({
+      clientId:      client.Id,
+      serviceId,
+      staffId,
+      startDateTime,
+      notes:         'Test booking from /debug/book-test endpoint',
+    });
+
+    res.json({
+      success: true,
+      client:      { id: client.Id, name: `${client.FirstName} ${client.LastName}` },
+      appointment: { id: appointment?.Id, startDateTime: appointment?.StartDateTime },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n✅ Beside → Mindbody integration running on port ${PORT}`);
