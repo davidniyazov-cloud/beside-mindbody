@@ -223,6 +223,7 @@ async function bookAppointment({ clientId, serviceId, staffId, startDateTime, no
     ClientId:      clientId,
     SessionTypeId: serviceId || parseInt(process.env.DEFAULT_SERVICE_ID, 10),
     StaffId:       staffId   || parseInt(process.env.DEFAULT_STAFF_ID, 10),
+    LocationId:    parseInt(process.env.DEFAULT_LOCATION_ID || '1', 10),
     StartDateTime: startDateTime,
     Notes:         notes || 'Booked automatically via Beside AI receptionist',
     SendEmail:     true,  // Mindbody sends its own confirmation email
