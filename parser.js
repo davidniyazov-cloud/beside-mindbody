@@ -191,9 +191,11 @@ function parseCallPayload(payload) {
   );
 
   // ── Extract service type ───────────────────────────────────────────────────
+  // Strip business name from text so we don't match "Therapeutic" in "Spacibo Therapeutic Massage"
+  const textForService = fullText.replace(/spacibo\s+therapeutic\s+massage/gi, 'SPACIBO_BUSINESS');
   let serviceType = null;
   for (const [keyword, name] of Object.entries(SERVICE_KEYWORDS)) {
-    if (fullText.toLowerCase().includes(keyword)) {
+    if (textForService.toLowerCase().includes(keyword)) {
       serviceType = name;
       break;
     }
