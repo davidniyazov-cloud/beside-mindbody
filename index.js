@@ -32,6 +32,7 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // parse form-encoded data from Zapier
 app.use(morgan('dev'));
 
 // ─── Health check ─────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ app.post('/webhook/beside', async (req, res) => {
     const payload = req.body;
     console.log('\n─────────────────────────────────────');
     console.log('[Webhook] Received Beside call event');
+    console.log('[Webhook] Full payload:', JSON.stringify(payload, null, 2));
     console.log('[Webhook] Caller:', payload.callerName || payload.caller_name || payload.phone || 'Unknown');
 
     // ── Step 1: Parse the call payload ────────────────────────────────────
