@@ -322,36 +322,42 @@ app.get('/debug/book-test', async (req, res) => {
       email:     'test@spacibo.com',
     });
 
-    // 2. Try several service IDs to find one active in the sandbox
-    const staffId = parseInt(process.env.DEFAULT_STAFF_ID, 10);
-    const candidateServiceIds = [200, 203, 204, 155, 156, 157, 4, 9, 246, 248];
+    // 2. Services 200/203/204 are active. Probe staff IDs to find one that works.
+    const activeServiceIds = [200, 203, 204];
+    const candidateStaffIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100000001, 100000003, 100000004, 100000005];
     let appointment = null;
     let usedServiceId = null;
+    let usedStaffId = null;
     const errors = {};
 
-    for (const svcId of candidateServiceIds) {
-      try {
-        appointment = await bookAppointment({
-          clientId:      client.Id,
-          serviceId:     svcId,
-          staffId,
-          startDateTime,
-          notes:         'Test booking from /debug/book-test endpoint',
-        });
-        usedServiceId = svcId;
-        break;
-      } catch (e) {
-        errors[svcId] = e.message;
+    outer:
+    for (const svcId of activeServiceIds) {
+      for (const staffId of candidateStaffIds) {
+        try {
+          appointment = await bookAppointment({
+            clientId:      client.Id,
+            serviceId:     svcId,
+            staffId,
+            startDateTime,
+            notes:         'Test booking from /debug/book-test',
+          });
+          usedServiceId = svcId;
+          usedStaffId = staffId;
+          break outer;
+        } catch (e) {
+          errors[`svc${svcId}-staff${staffId}`] = e.message.replace('Mindbody API error on POST /appointment/addappointment: ', '');
+        }
       }
     }
 
     if (!appointment) {
-      return res.status(500).json({ success: false, triedServiceIds: candidateServiceIds, errors });
+      return res.status(500).json({ success: false, errors });
     }
 
     res.json({
       success: true,
       usedServiceId,
+      usedStaffId,
       client:      { id: client.Id, name: `${client.FirstName} ${client.LastName}` },
       appointment: { id: appointment?.Id, startDateTime: appointment?.StartDateTime },
     });
