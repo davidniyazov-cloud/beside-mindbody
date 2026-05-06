@@ -198,12 +198,15 @@ async function resolveService(serviceHint) {
  * @param {number} serviceId
  */
 async function getAvailability(dateStr, staffId, serviceId) {
-  const res = await mb('GET', '/appointment/availabilities', {
-    StaffIds:       [staffId || parseInt(process.env.DEFAULT_STAFF_ID, 10)],
+  const params = {
     SessionTypeIds: [serviceId || parseInt(process.env.DEFAULT_SERVICE_ID, 10)],
     StartDateTime:  `${dateStr}T00:00:00`,
     EndDateTime:    `${dateStr}T23:59:59`,
-  });
+  };
+  if (staffId) {
+    params.StaffIds = [staffId];
+  }
+  const res = await mb('GET', '/appointment/availabilities', params);
   return res.Availabilities || [];
 }
 
