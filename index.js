@@ -76,6 +76,7 @@ app.post('/webhook/beside', async (req, res) => {
       firstName: intent.caller.firstName,
       lastName:  intent.caller.lastName,
       phone:     intent.caller.phone,
+      email:     intent.caller.email,
     });
 
     console.log(`[Mindbody] Client ready: ${client.FirstName} ${client.LastName} (ID: ${client.Id})`);
@@ -153,6 +154,7 @@ app.post('/webhook/beside/lead', async (req, res) => {
       firstName: intent.caller.firstName,
       lastName:  intent.caller.lastName,
       phone:     intent.caller.phone,
+      email:     intent.caller.email,
     });
 
     res.json({

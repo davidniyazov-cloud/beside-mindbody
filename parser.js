@@ -112,6 +112,16 @@ function extractTime(text) {
   return null;
 }
 
+// ─── Email extraction ─────────────────────────────────────────────────────────
+
+/**
+ * Extract an email address from text.
+ */
+function extractEmail(text) {
+  const match = text.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+  return match ? match[0] : null;
+}
+
 // ─── Name parsing ─────────────────────────────────────────────────────────────
 
 /**
@@ -197,6 +207,9 @@ function parseCallPayload(payload) {
   const date = extractDate(focusText) || extractDate(fullText);
   const time = extractTime(focusText) || extractTime(fullText);
 
+  // ── Extract email ─────────────────────────────────────────────────────────
+  const email = extractEmail(fullText) || null;
+
   // ── Parse caller name ──────────────────────────────────────────────────────
   const { firstName, lastName } = splitName(callerName);
 
@@ -221,6 +234,7 @@ function parseCallPayload(payload) {
       firstName,
       lastName,
       phone: callerPhone,
+      email,
       fullName: callerName,
     },
     appointment: {
