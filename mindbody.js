@@ -92,11 +92,12 @@ async function createClient({ firstName, lastName, phone, email }) {
   const cleanPhone = (phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10);
 
   const res = await mb('POST', '/client/addclient', {
-    FirstName:   firstName || 'Unknown',
-    LastName:    lastName  || '',
-    MobilePhone: cleanPhone || '',
-    Email:       email     || '',
-    BirthDate:   '1900-01-01T00:00:00', // required by Mindbody; update when client provides DOB
+    FirstName:    firstName || 'Unknown',
+    LastName:     lastName  || '',
+    MobilePhone:  cleanPhone || '',
+    Email:        email     || '',
+    BirthDate:    '1900-01-01T00:00:00',
+    HomeLocation: { Id: parseInt(process.env.DEFAULT_LOCATION_ID || '1', 10) },
   });
   return res.Client;
 }
