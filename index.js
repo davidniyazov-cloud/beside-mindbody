@@ -164,7 +164,7 @@ app.post('/webhook/beside', async (req, res) => {
       // Try to get a real available slot first (gives us a valid staffId)
       const dateStr = intent.appointment.startDateTime.split('T')[0];
       try {
-        const slots = await getAvailability(dateStr, staffId, serviceId);
+        const slots = await getAvailability(dateStr, null, serviceId); // null = no staff filter → get all available
         if (slots && slots.length > 0) {
           // Use the staff from the first available slot
           staffId = slots[0].Staff?.Id || staffId;
