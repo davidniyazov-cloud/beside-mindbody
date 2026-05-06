@@ -85,10 +85,13 @@ async function findClientByPhone(phone) {
  * Returns the created client object.
  */
 async function createClient({ firstName, lastName, phone, email }) {
+  // Mindbody expects 10-digit US phone, no country code, no special chars
+  const cleanPhone = (phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10);
+
   const res = await mb('POST', '/client/addclient', {
     FirstName:   firstName || 'Unknown',
     LastName:    lastName  || '',
-    MobilePhone: phone     || '',
+    MobilePhone: cleanPhone || '',
     Email:       email     || '',
   });
   return res.Client;
