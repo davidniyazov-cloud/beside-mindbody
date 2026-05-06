@@ -26,6 +26,7 @@ const {
   getAvailability,
   bookAppointment,
   sendTextMessage,
+  getServiceTypes,
 } = require('./mindbody');
 
 const app  = express();
@@ -38,6 +39,55 @@ app.use(morgan('dev'));
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'Beside → Mindbody Integration' });
+});
+
+// ─── Debug: list sandbox session types & staff ────────────────────────────────
+app.get('/debug', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const BASE_URL = 'https://api.mindbodyonline.com/public/v6';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Api-Key': process.env.MINDBODY_API_KEY,
+      'SiteId': process.env.MINDBODY_SITE_ID,
+    };
+
+    // Session types
+    let sessionTypes = [];
+    try {
+      const st = await axios.get(`${BASE_URL}/site/sessiontypes`, { headers });
+      sessionTypes = st.data.SessionTypes || [];
+    } catch (e) {
+      sessionTypes = [{ error: e.message }];
+    }
+
+    // Staff
+    let staff = [];
+    try {
+      const sf = await axios.get(`${BASE_URL}/site/staff`, { headers });
+      staff = (sf.data.StaffMembers || []).map(s => ({ Id: s.Id, Name: s.Name }));
+    } catch (e) {
+      staff = [{ error: e.message }];
+    }
+
+    // Locations
+    let locations = [];
+    try {
+      const lc = await axios.get(`${BASE_URL}/site/locations`, { headers });
+      locations = (lc.data.Locations || []).map(l => ({ Id: l.Id, Name: l.Name }));
+    } catch (e) {
+      locations = [{ error: e.message }];
+    }
+
+    res.json({
+      siteId: process.env.MINDBODY_SITE_ID,
+      sessionTypes: sessionTypes.map(t => ({ Id: t.Id, Name: t.Name, error: t.error })),
+      staff,
+      locations,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Beside Webhook ───────────────────────────────────────────────────────────
