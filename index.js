@@ -28,7 +28,294 @@ const {
   sendTextMessage,
   getServiceTypes,
   getStaffTokenDebug,
-} = require('./mindbody');
+ * index.js
+ * Beside â Mindbody Integration Server
+ *
+ * Receives Beside call webhooks and automatically:
+ *  1. Parses booking intent from the call summary/transcript
+ *  2. Finds or creates the client in Mindbody
+ *  3. Books the appointment
+ *  4. Sends a confirmation text to the client
+ *
+ * Setup:
+ *   1. cp .env.example .env  â  fill in your credentials
+ *   2. npm install
+ *   3. node index.js
+ *   4. Point Beside webhook URL to: http://your-server:3000/webhook/beside
+ // ─── Debug: API connectivity check (no staff auth) ─────────────────────────
+app.get('/debug', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const BASE_URL = 'https://api.mindbodyonline.com/public/v6';
+    const headers = {
+      'Content-Type': 'application/json',
+      'Api-Key': process.env.MINDBODY_API_KEY,
+      'SiteId': process.env.MINDBODY_SITE_ID,
+    };
+    let sessionTypes = [];
+    try {
+      const st = await axios.get(`${BASE_URL}/site/sessiontypes`, { headers });
+      sessionTypes = (st.data.SessionTypes || []).map(t => ({ Id: t.Id, Name: t.Name }));
+    } catch (e) { sessionTypes = [{ error: e.message }]; }
+    let staff = [];
+    try {
+      const sf = await axios.get(`${BASE_URL}/site/staff`, { headers });
+      staff = (sf.data.StaffMembers || []).map(s => ({ Id: s.Id, Name: s.Name }));
+    } catch (e) { staff = [{ error: e.message }]; }
+    let locations = [];
+    try {
+      const lc = await axios.get(`${BASE_URL}/site/locations`, { headers });
+      locations = (lc.data.Locations || []).map(l => ({ Id: l.Id, Name: l.Name }));
+    } catch (e) { locations = [{ error: e.message }]; }
+    res.json({ siteId: process.env.MINDBODY_SITE_ID, sessionTypesCount: sessionTypes.length, sessionTypes, staff, locations });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+        action: 'skipped',
+        reason: 'No booking intent detected in this call',
+      });
+    }
+
+    // ââ Step 2: Find or create the client in Mindbody âââââââââââââââââââââ
+    const client = await findOrCreateClient({
+      firstName: intent.caller.firstName,
+      lastName:  intent.caller.lastName,
+      phone:     intent.caller.phone,
+      email:     intent.caller.email,
+    });
+
+    console.log(`[Mindbody] Client ready: ${client.FirstName} ${client.LastName} (ID: ${client.Id})`);
+
+    // ââ Step 3: Resolve the service type ââââââââââââââââââââââââââââââââââ
+    const serviceId = await resolveService(intent.appointment.serviceType);
+    let staffId     = parseInt(process.env.DEFAULT_STAFF_ID, 10);
+
+    // ââ Step 4: Book the appointment (if we have a date/time) ââââââââââââ
+    let appointment = null;
+    if (intent.appointment.startDateTime) {
+      // Try to get a real available slot first (gives us a valid staffId)
+      const dateStr = intent.appointment.startDateTime.split('T')[0];
+      try {
+        const slots = await getAvailability(dateStr, null, serviceId); // null = no staff filter â get all available
+        if (slots && slots.length > 0) {
+          // Use the staff from the first available slot
+          staffId = slots[0].Staff?.Id || staffId;
+          console.log(`[Mindbody] Using staff ID from availability: ${staffId}`);
+        }
+      } catch (avErr) {
+        console.log(`[Mindbody] Availability check failed (using default staffId): ${avErr.message}`);
+      }
+
+      appointment = await bookAppointment({
+        clientId:      client.Id,
+        serviceId,
+        staffId,
+        startDateTime: intent.appointment.startDateTime,
+        notes:         intent.notes,
+      });
+      console.log(`[Mindbody] Appointment booked! ID: ${appointment?.Id}`);
+    } else {
+      console.log('[Handler] No date/time found â skipping appointment booking');
+    }
+
+    // ââ Step 5: Send confirmation text ââââââââââââââââââââââââââââââââââââ
+    if (appointment && client.Id) {
+      const serviceName = intent.appointment.serviceType || 'massage';
+      const dateStr     = intent.appointment.date || 'your scheduled date';
+      const timeStr     = intent.appointment.time
+        ? formatTime(intent.appointment.time)
+        : 'your scheduled time';
+
+      const confirmationMsg = buildConfirmationMessage({
+        firstName:   client.FirstName,
+        serviceName,
+        dateStr,
+        timeStr,
+        appointmentId: appointment.Id,
+      });
+
+      await sendTextMessage(client.Id, confirmationMsg);
+      console.log('[Mindbody] Confirmation message sent to client');
+    }
+
+    // ââ Respond âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    res.json({
+      success: true,
+      action: 'booked',
+      client: {
+        id:        client.Id,
+        firstName: client.FirstName,
+        lastName:  client.LastName,
+      },
+      appointment: appointment
+        ? { id: appointment.Id, startDateTime: appointment.StartDateTime }
+        : null,
+    });
+
+  } catch (err) {
+    console.error('[Error]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// âââ Lead creation webhook (fires on new leads in Beside) ââââââââââââââââââââ
+app.post('/webhook/beside/lead', async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log('\nâââââââââââââââââââââââââââââââââââââ');
+    console.log('[Lead Webhook] New lead:', payload.callerName || payload.phone);
+
+    const intent = parseCallPayload(payload);
+
+    // Create the client in Mindbody as a lead / prospect
+    const client = await findOrCreateClient({
+      firstName: intent.caller.firstName,
+      lastName:  intent.caller.lastName,
+      phone:     intent.caller.phone,
+      email:     intent.caller.email,
+    });
+
+    res.json({
+      success: true,
+      action: 'lead_created',
+      client: { id: client.Id, firstName: client.FirstName },
+    });
+
+  } catch (err) {
+    console.error('[Lead Error]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// âââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+function formatTime(timeStr) {
+  // "14:00:00" â "2:00 PM"
+  const [h, m] = timeStr.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour   = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function buildConfirmationMessage({ firstName, serviceName, dateStr, timeStr, appointmentId }) {
+  return `
+    <p>Hi ${firstName},</p>
+    <p>Your <strong>${serviceName} massage</strong> appointment at
+    <strong>Spacibo Therapeutic Massage</strong> has been confirmed!</p>
+    <p><strong>Date:</strong> ${dateStr}<br/>
+    <strong>Time:</strong> ${timeStr}<br/>
+    <strong>Location:</strong> 5571 N University Drive, Coral Springs, FL 33067</p>
+    <p>Please arrive 5 minutes early. If you need to reschedule,
+    reply to this message or call us at your convenience.</p>
+    <p>See you soon!<br/>â David, Spacibo Therapeutic Massage</p>
+    ${appointmentId ? `<p style="color:#999;font-size:12px">Confirmation #: ${appointmentId}</p>` : ''}
+  `.trim();
+}
+
+// âââ Debug: check availability for next 7 days ââââââââââââââââââââââââââââââ
+app.get('/debug/slots', async (req, res) => {
+  try {
+    const today = new Date();
+    const results = {};
+    const serviceIds = [200, 245, 246, 248, 4, 9]; // test a variety
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+      results[dateStr] = {};
+      for (const svcId of serviceIds) {
+        try {
+          const slots = await getAvailability(dateStr, null, svcId);
+          if (slots.length > 0) results[dateStr][svcId] = slots.map(s => ({ time: s.StartDateTime, staffId: s.Staff?.Id, staffName: s.Staff?.Name }));
+        } catch(e) {
+          results[dateStr][svcId] = { error: e.message };
+        }
+      }
+    }
+    res.json({ siteId: process.env.MINDBODY_SITE_ID, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// âââ Direct booking test (sandbox) ââââââââââââââââââââââââââââââââââââââââââ
+app.get('/debug/book-test', async (req, res) => {
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+    const startDateTime = `${dateStr}T10:00:00`;
+
+    // 1. Find or create a test client
+    const client = await findOrCreateClient({
+      firstName: 'Test',
+      lastName:  'Booking',
+      phone:     '5555555555',
+      email:     'test@spacibo.com',
+    });
+
+    // 2. Staff ID 1 is active. Find which services they can provide via activesessiontypes?staffId=1
+    const staffId = 1;
+    let staffServiceTypes = [];
+    try {
+      const axios = require('axios');
+      const r = await axios.get('https://api.mindbodyonline.com/public/v6/appointment/activesessiontypes', {
+        headers: {
+          'Api-Key':       process.env.MINDBODY_API_KEY,
+          'SiteId':        process.env.MINDBODY_SITE_ID,
+          'Authorization': await require('./mindbody').getStaffTokenDebug(),
+        },
+        params: { StaffId: staffId },
+      });
+      staffServiceTypes = (r.data.SessionTypes || []).map(t => t.Id);
+    } catch(e) {
+      return res.status(500).json({ success: false, step: 'get staff services', error: e.message });
+    }
+
+    // Try booking with each service type until one succeeds
+    let appointment = null;
+    let usedServiceId = null;
+    const errors = {};
+    for (const svcId of staffServiceTypes.slice(0, 20)) {
+      try {
+        appointment = await bookAppointment({
+          clientId:      client.Id,
+          serviceId:     svcId,
+          staffId,
+          startDateTime,
+          notes:         'Test booking from /debug/book-test',
+        });
+        usedServiceId = svcId;
+        break;
+      } catch (e) {
+        errors[svcId] = e.message.replace('Mindbody API error on POST /appointment/addappointment: ', '');
+      }
+    }
+
+    if (!appointment) {
+      return res.status(500).json({ success: false, staffId, staffServiceTypes, errors });
+    }
+
+    res.json({
+      success: true,
+      usedServiceId,
+      staffId,
+      client:      { id: client.Id, name: `${client.FirstName} ${client.LastName}` },
+      appointment: { id: appointment?.Id, startDateTime: appointment?.StartDateTime },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// âââ Start ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+app.listen(PORT, () => {
+  console.log(`\nâ Beside â Mindbody integration running on port ${PORT}`);
+  console.log(`   Webhook URL: http://localhost:${PORT}/webhook/beside`);
+  console.log(`   Lead URL:    http://localhost:${PORT}/webhook/beside/lead`);
+  console.log(`   Mindbody Site ID: ${process.env.MINDBODY_SITE_ID}`);
+});
+
+} = require('./mindbody')
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
