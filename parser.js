@@ -135,11 +135,12 @@ function splitName(fullName) {
  * @returns {object} intent - Parsed booking intent
  */
 function parseCallPayload(payload) {
-  // Beside's webhook may use different field names depending on version/Zapier mapping
+  // Beside sends via Zapier with these field names:
+  // from_name, from_phone_number, summary, transcript, title, direction, id
   const summary    = payload.summary    || payload.Summary    || '';
   const transcript = payload.transcript || payload.Transcript || '';
-  const callerName = payload.callerName || payload.caller_name || payload.CallerName || '';
-  const callerPhone= payload.callerPhone|| payload.caller_phone|| payload.CallerPhone|| payload.phone || '';
+  const callerName = payload.from_name  || payload.callerName || payload.caller_name || payload.CallerName || '';
+  const callerPhone= payload.from_phone_number || payload.callerPhone || payload.caller_phone || payload.phone || '';
 
   // Combine all text for parsing
   const fullText = `${summary}\n${transcript}`;
