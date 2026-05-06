@@ -27,6 +27,7 @@ const {
   bookAppointment,
   sendTextMessage,
   getServiceTypes,
+  getStaffTokenDebug,
 } = require('./mindbody');
 
 const app  = express();
@@ -52,22 +53,42 @@ app.get('/debug', async (req, res) => {
       'SiteId': process.env.MINDBODY_SITE_ID,
     };
 
-    // Session types
-    let sessionTypes = [];
+    // Active session types (with auth — same path the booking flow uses)
+    let activeSessionTypes = [];
     try {
-      const st = await axios.get(`${BASE_URL}/site/sessiontypes`, { headers });
-      sessionTypes = st.data.SessionTypes || [];
+      const active = await getServiceTypes();
+      activeSessionTypes = active.map(t => ({ Id: t.Id, Name: t.Name, Active: t.Active }));
     } catch (e) {
-      sessionTypes = [{ error: e.message }];
+      activeSessionTypes = [{ error: e.message }];
     }
 
-    // Staff
+    // All session types (no auth, for comparison)
+    let allSessionTypes = [];
+    try {
+      const st = await axios.get(`${BASE_URL}/site/sessiontypes`, { headers });
+      allSessionTypes = (st.data.SessionTypes || []).map(t => ({ Id: t.Id, Name: t.Name }));
+    } catch (e) {
+      allSessionTypes = [{ error: e.message }];
+    }
+
+    // Staff — site/staff (no auth)
     let staff = [];
     try {
       const sf = await axios.get(`${BASE_URL}/site/staff`, { headers });
       staff = (sf.data.StaffMembers || []).map(s => ({ Id: s.Id, Name: s.Name }));
     } catch (e) {
       staff = [{ error: e.message }];
+    }
+
+    // appointment/staff with auth token
+    let appointmentStaff = [];
+    try {
+      const token = await getStaffTokenDebug();
+      const authHeaders = { ...headers, 'Authorization': token };
+      const sf2 = await axios.get(`${BASE_URL}/appointment/staff`, { headers: authHeaders });
+      appointmentStaff = (sf2.data.StaffMembers || []).map(s => ({ Id: s.Id, Name: s.Name }));
+    } catch (e) {
+      appointmentStaff = [{ error: e.message }];
     }
 
     // Locations
@@ -81,8 +102,10 @@ app.get('/debug', async (req, res) => {
 
     res.json({
       siteId: process.env.MINDBODY_SITE_ID,
-      sessionTypes: sessionTypes.map(t => ({ Id: t.Id, Name: t.Name, error: t.error })),
+      activeSessionTypes,
+      allSessionTypesCount: allSessionTypes.length,
       staff,
+      appointmentStaff,
       locations,
     });
   } catch (err) {
