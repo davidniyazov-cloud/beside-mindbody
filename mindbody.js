@@ -199,6 +199,7 @@ async function resolveService(serviceHint) {
  */
 async function getAvailability(dateStr, staffId, serviceId) {
   const params = {
+    LocationId:     parseInt(process.env.DEFAULT_LOCATION_ID || '1', 10),
     SessionTypeIds: [serviceId || parseInt(process.env.DEFAULT_SERVICE_ID, 10)],
     StartDateTime:  `${dateStr}T00:00:00`,
     EndDateTime:    `${dateStr}T23:59:59`,
