@@ -206,7 +206,7 @@ async function getAvailability(dateStr, staffId, serviceId) {
   if (staffId) {
     params.StaffIds = [staffId];
   }
-  const res = await mb('GET', '/appointment/availabilities', params);
+  const res = await mb('POST', '/appointment/availabilities', params);
   return res.Availabilities || [];
 }
 
