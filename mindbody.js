@@ -57,7 +57,10 @@ async function mb(method, path, data = {}, auth = true) {
     const res = await axios(config);
     return res.data;
   } catch (err) {
-    const msg = err.response?.data?.Error?.Message || err.message;
+    const error = err.response?.data?.Error;
+    const msg = error?.Message || err.message;
+    const details = JSON.stringify(error || err.response?.data || {});
+    console.error(`[Mindbody] Full error on ${method} ${path}:`, details);
     throw new Error(`Mindbody API error on ${method} ${path}: ${msg}`);
   }
 }
