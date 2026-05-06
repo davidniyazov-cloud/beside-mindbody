@@ -96,6 +96,7 @@ async function createClient({ firstName, lastName, phone, email }) {
     LastName:    lastName  || '',
     MobilePhone: cleanPhone || '',
     Email:       email     || '',
+    BirthDate:   '1900-01-01T00:00:00', // required by Mindbody; update when client provides DOB
   });
   return res.Client;
 }
