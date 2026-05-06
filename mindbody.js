@@ -259,4 +259,5 @@ module.exports = {
   getAvailability,
   bookAppointment,
   sendTextMessage,
+  getStaffTokenDebug: getStaffToken, // exposed for debug endpoint only
 };
