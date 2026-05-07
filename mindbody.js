@@ -18,7 +18,7 @@ let _tokenExpiry = null;
  * Get (and cache) a staff user token.
  * Required for booking appointments on behalf of the business.
  */
-async function getStaffToken() 
+async function getStaffToken()  {
   if (_staffToken && _tokenExpiry && Date.now() < _tokenExpiry) {
     return _staffToken;
   }
