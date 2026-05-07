@@ -117,7 +117,8 @@ async function createClient({ firstName, lastName, phone, email }) {
     HomeLocation: { Id: parseInt(process.env.DEFAULT_LOCATION_ID || '1', 10) },
           SendAccountEmails: true,
           SendScheduleEmails: true,
-          SendPromotionalEmails: false,
+          SendPromotionalEmails: true,
+          SendScheduleTexts: true,
   });
   return res.Client;
 }
