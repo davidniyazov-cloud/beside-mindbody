@@ -18,7 +18,7 @@ let _tokenExpiry = null;
  * Get (and cache) a staff user token.
  * Required for booking appointments on behalf of the business.
  */
-async function getStaffToken() {
+async function getStaffToken() 
   if (_staffToken && _tokenExpiry && Date.now() < _tokenExpiry) {
     return _staffToken;
   }
@@ -115,6 +115,9 @@ async function createClient({ firstName, lastName, phone, email }) {
     Email:        email     || '',
     BirthDate:    '1900-01-01T00:00:00',
     HomeLocation: { Id: parseInt(process.env.DEFAULT_LOCATION_ID || '1', 10) },
+          SendAccountEmails: true,
+          SendScheduleEmails: true,
+          SendPromotionalEmails: false,
   });
   return res.Client;
 }
