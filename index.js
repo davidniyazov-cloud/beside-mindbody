@@ -24,7 +24,7 @@ const {
   findOrCreateClient,
   resolveService,
   getAvailability,
-  bookAppointment,
+  bookAppointment
   sendTextMessage,
   getServiceTypes,
   getStaffTokenDebug,
@@ -133,7 +133,7 @@ app.get('/debug', async (req, res) => {
         appointmentId: appointment.Id,
       });
 
-      await sendTextMessage(client.Id, confirmationMsg);
+      // await sendTextMessage(client.Id, confirmationMsg);
       console.log('[Mindbody] Confirmation message sent to client');
     }
 
@@ -489,7 +489,7 @@ app.post('/webhook/beside', async (req, res) => {
         appointmentId: appointment.Id,
       });
 
-      await sendTextMessage(client.Id, confirmationMsg);
+      // await sendTextMessage(client.Id, confirmationMsg);
       console.log('[Mindbody] Confirmation message sent to client');
     }
 
